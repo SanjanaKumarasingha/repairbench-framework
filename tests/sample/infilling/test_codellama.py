@@ -135,6 +135,7 @@ class TestInfillingCodellama:
         # Assert that the prompt is properly constructed
         assert sample["prompt"].count("<FILL_ME>") == 1
 
+
     def test_closure_46(self):
         bug = TestInfillingCodellama.DEFECTS4J.get_bug("Closure-46")
         assert bug is not None

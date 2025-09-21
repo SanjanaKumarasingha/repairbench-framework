@@ -523,4 +523,6 @@ def remove_python_comments(source: str) -> Optional[str]:
 
 def remove_empty_lines(source):
     """Remove all empty lines from the source code."""
+    if source is None:
+        return None
     return re.sub(r"^\s*$\n", "", source, flags=re.MULTILINE)
