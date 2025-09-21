@@ -3,7 +3,6 @@ from typing import Optional
 from io import StringIO
 from elleelleaime.core.benchmarks.benchmark import Benchmark
 from elleelleaime.core.benchmarks.BugsInPy.BugsInPybug import BugsInPyBug
-
 import subprocess
 import logging
 import re

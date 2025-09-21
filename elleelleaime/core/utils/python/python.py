@@ -116,9 +116,21 @@ def get_modified_source_lines(diff: PatchSet) -> List[int]:
             elif line.is_context:
                 context_lines.append(line.source_line_no)
 
-    # Take median value of context lines (to avoid getting lines outside the function)
-    context_lines = context_lines[len(context_lines) // 2 : len(context_lines) // 2 + 1]
-    return removed_lines if len(removed_lines) > 0 else context_lines
+    # For BugsInPy, we need to extract the entire hunk context, not just the changed lines
+    if len(removed_lines) > 0:
+        # Get all lines in the hunk range
+        hunk_lines = []
+        for hunk in diff[0]:
+            hunk_lines.extend(
+                range(hunk.source_start, hunk.source_start + hunk.source_length)
+            )
+        return hunk_lines
+    else:
+        # Take median value of context lines (to avoid getting lines outside the function)
+        context_lines = context_lines[
+            len(context_lines) // 2 : len(context_lines) // 2 + 1
+        ]
+        return context_lines
 
 
 def get_modified_target_lines(diff: PatchSet) -> List[int]:
@@ -134,49 +146,65 @@ def get_modified_target_lines(diff: PatchSet) -> List[int]:
             elif line.is_context:
                 context_lines.append(line.target_line_no)
 
-    # Take median value of context lines (to avoid getting lines outside the function)
-    context_lines = context_lines[len(context_lines) // 2 : len(context_lines) // 2 + 1]
-    return added_lines if len(added_lines) > 0 else context_lines
+    # For BugsInPy, we need to extract the entire hunk context, not just the changed lines
+    if len(added_lines) > 0:
+        # Get all lines in the hunk range
+        hunk_lines = []
+        for hunk in diff[0]:
+            hunk_lines.extend(
+                range(hunk.target_start, hunk.target_start + hunk.target_length)
+            )
+        return hunk_lines
+    else:
+        # Take median value of context lines (to avoid getting lines outside the function)
+        context_lines = context_lines[
+            len(context_lines) // 2 : len(context_lines) // 2 + 1
+        ]
+        return context_lines
 
 
 def extract_single_function(bug: Bug) -> Optional[Tuple[str, str]]:
     """
-    Extracts the buggy and fixed code of single-function bugs.
-    Returns None is bug is not single-function
+    Extracts the buggy and fixed code of single-function bugs for BugsInPy.
 
     Args:
-        bug (Bug): The bug to extract the code from
+        bug (Bug): The BugsInPy bug to extract the code from
 
     Returns:
         Optional[Tuple[str, str]]: None if the bug is not single-function, otherwise a tuple of the form (buggy_code, fixed_code)
     """
-    # Get buggy and fixed path
-    # TODO: Make more generic
-    project_name, _ = bug.get_identifier().rsplit("-", 1)
-    buggy_path = fixed_path = f"./benchmarks/BugsInPy/framework/bin/temp/{project_name}"
-
+    project_name = bug.project_name
+    bug_id = bug.bug_id
     try:
         # Buggy code
         # Checkout the buggy version of the bug
-        bug.checkout(bug.get_identifier(), fixed=0)
+        if hasattr(bug, "checkout_fixed"):
+            bug.checkout_fixed(bug.get_identifier(), fixed=False)
+        else:
+            bug.checkout(bug.get_identifier(), fixed=False)
         bug.compile(bug.get_identifier())
 
         # Check if the bug is inverted
         diff = PatchSet(bug.get_ground_truth())
 
         if bug.is_ground_truth_inverted():
-            buggy_file_path = Path(buggy_path, get_target_filename(diff))
+            buggy_file_path = f"/bugsinpy/framework/bin/temp/{project_name}/{get_target_filename(diff)}"
             modified_buggy_lines = get_modified_target_lines(diff)
         else:
-            buggy_file_path = Path(buggy_path, get_source_filename(diff))
+            buggy_file_path = f"/bugsinpy/framework/bin/temp/{project_name}/{get_source_filename(diff)}"
             modified_buggy_lines = get_modified_source_lines(diff)
 
         # Run code extractor for the buggy function
-        def extract_code(file_path: Path, modified_lines: List[int]):
+        def extract_code_docker(file_path: str, modified_lines: List[int]):
             try:
-                # Read all lines of the file
-                with file_path.open("r", encoding="utf-8") as f:
-                    lines = f.readlines()
+                # Read all lines of the file from inside the container
+                run = subprocess.run(
+                    f"docker exec bugsinpy-container cat {file_path}",
+                    shell=True,
+                    capture_output=True,
+                    check=True,
+                )
+                lines = run.stdout.decode("utf-8").splitlines(keepends=True)
 
                 # Extract the modified lines
                 code = "".join(
@@ -189,25 +217,28 @@ def extract_single_function(bug: Bug) -> Optional[Tuple[str, str]]:
                 print(f"Failed to extract code from {file_path} with error: {e}")
                 return ""
 
-        buggy_code = extract_code(buggy_file_path, modified_buggy_lines)
+        buggy_code = extract_code_docker(buggy_file_path, modified_buggy_lines)
 
         # Fixed code
         # Checkout the fixed version of the bug
-        bug.checkout(bug.get_identifier(), fixed=1)
+        if hasattr(bug, "checkout_fixed"):
+            bug.checkout_fixed(bug.get_identifier(), fixed=True)
+        else:
+            bug.checkout(bug.get_identifier(), fixed=True)
         bug.compile(bug.get_identifier())
 
         # Check if the bug is inverted
         diff = PatchSet(bug.get_ground_truth())
 
         if bug.is_ground_truth_inverted():
-            fixed_file_path = Path(fixed_path, get_source_filename(diff))
+            fixed_file_path = f"/bugsinpy/framework/bin/temp/{project_name}/{get_source_filename(diff)}"
             modified_fixed_lines = get_modified_source_lines(diff)
         else:
-            fixed_file_path = Path(fixed_path, get_target_filename(diff))
+            fixed_file_path = f"/bugsinpy/framework/bin/temp/{project_name}/{get_target_filename(diff)}"
             modified_fixed_lines = get_modified_target_lines(diff)
 
         # Run code extractor for the fixed function
-        fixed_code = extract_code(fixed_file_path, modified_fixed_lines)
+        fixed_code = extract_code_docker(fixed_file_path, modified_fixed_lines)
 
         # HACK: sometimes we are not able to properly retrieve the code at the function-level
         # This happens in cases suchas Closure-46 where a whole function is removed
@@ -234,10 +265,14 @@ def extract_single_function(bug: Bug) -> Optional[Tuple[str, str]]:
 
         return buggy_code, fixed_code
 
-    finally:
-        # Remove checked-out bugs
-        shutil.rmtree(buggy_path, ignore_errors=True)
-        shutil.rmtree(fixed_path, ignore_errors=True)
+    except Exception as e:
+        print(
+            f"Failed to extract single function for BugsInPy bug {bug.get_identifier()}: {e}"
+        )
+        import traceback
+
+        traceback.print_exc()
+        return None
 
 
 def find_test_class(path: Path, bug, class_name: str) -> Optional[Path]:
