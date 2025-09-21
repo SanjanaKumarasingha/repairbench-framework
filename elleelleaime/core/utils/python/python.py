@@ -166,6 +166,7 @@ def get_modified_target_lines(diff: PatchSet) -> List[int]:
 def extract_single_function(bug: Bug) -> Optional[Tuple[str, str]]:
     """
     Extracts the buggy and fixed code of single-function bugs for BugsInPy.
+    Uses Docker commands to access files inside the container.
 
     Args:
         bug (Bug): The BugsInPy bug to extract the code from
@@ -301,9 +302,174 @@ def find_test_class(path: Path, bug, class_name: str) -> Optional[Path]:
         return None
 
 
-# TODO
 def extract_failing_test_cases(bug: RichBug) -> dict[str, str]:
-    return {}
+    """
+    Extracts the code of the failing test cases of a BugsInPy bug.
+    Uses Docker commands to access files inside the container.
+
+    Args:
+        bug (Bug): The BugsInPy bug to extract the failing test cases from
+
+    Returns:
+        dict[str, str]: A dictionary mapping failing test cases to their code
+    """
+    project_name = bug.project_name
+    bug_id = bug.bug_id
+    failing_test_cases = {}
+
+    try:
+        # Checkout buggy version
+        if hasattr(bug, "checkout_fixed"):
+            bug.checkout_fixed(bug.get_identifier(), fixed=False)
+        else:
+            bug.checkout(bug.get_identifier(), fixed=False)
+        bug.compile(bug.get_identifier())
+
+        # Get failing test information
+        failing_tests = bug.get_failing_tests()
+
+        if not failing_tests:
+            # Try to extract failing tests by running tests and parsing output
+            failing_tests = _extract_failing_test_names_from_output(bug)
+
+        for test_name, error_msg in failing_tests.items():
+            # Parse test name (format: test_file.py::TestClass::test_method)
+            if "::" in test_name:
+                parts = test_name.split("::")
+                if len(parts) >= 2:
+                    test_file = parts[0]
+                    test_method = parts[-1]  # Last part is the method name
+
+                    # Find the test file in the container
+                    test_file_path = _find_test_file_in_container(
+                        project_name, test_file
+                    )
+                    if test_file_path:
+                        # Extract the test method code
+                        test_code = _extract_test_method_from_file(
+                            test_file_path, test_method
+                        )
+                        if test_code:
+                            failing_test_cases[test_name] = test_code
+
+        return failing_test_cases
+
+    except Exception as e:
+        print(
+            f"Failed to extract failing test cases for BugsInPy bug {bug.get_identifier()}: {e}"
+        )
+        return {}
+
+
+def _extract_failing_test_names_from_output(bug: RichBug) -> dict[str, str]:
+    """
+    Extracts failing test names by running tests and parsing the output.
+    """
+    try:
+        # Run tests to get failure information
+        run = subprocess.run(
+            f"docker exec bugsinpy-container /bugsinpy/framework/bin/bugsinpy-test -w /bugsinpy/framework/bin/temp/{bug.project_name}",
+            shell=True,
+            capture_output=True,
+            check=False,
+        )
+
+        stdout = run.stdout.decode("utf-8")
+        stderr = run.stderr.decode("utf-8")
+
+        failing_tests = {}
+
+        # Look for unittest-style failures
+        import re
+
+        # Pattern to match unittest failure format: test.test_utils.TestUtil.test_match_str
+        failure_pattern = r"FAILED\s+([^\s]+)\.([^\s]+)\.([^\s]+)"
+        matches = re.findall(failure_pattern, stdout + stderr)
+
+        for test_file, test_class, test_method in matches:
+            test_name = f"{test_file}::{test_class}::{test_method}"
+            failing_tests[test_name] = "Test failed"
+
+        return failing_tests
+
+    except Exception as e:
+        print(f"Failed to extract failing test names: {e}")
+        return {}
+
+
+def _find_test_file_in_container(project_name: str, test_file: str) -> Optional[str]:
+    """
+    Finds a test file in the BugsInPy container.
+    """
+    try:
+        # Look for the test file in the test directory
+        run = subprocess.run(
+            f"docker exec bugsinpy-container find /bugsinpy/framework/bin/temp/{project_name} -name '{test_file}' -type f",
+            shell=True,
+            capture_output=True,
+            check=True,
+        )
+
+        files = run.stdout.decode("utf-8").strip().split("\n")
+        if files and files[0]:
+            return files[0]
+
+        return None
+
+    except Exception as e:
+        print(f"Failed to find test file {test_file}: {e}")
+        return None
+
+
+def _extract_test_method_from_file(file_path: str, method_name: str) -> Optional[str]:
+    """
+    Extracts a specific test method from a Python test file.
+    """
+    try:
+        # Read the file content
+        run = subprocess.run(
+            f"docker exec bugsinpy-container cat {file_path}",
+            shell=True,
+            capture_output=True,
+            check=True,
+        )
+
+        content = run.stdout.decode("utf-8")
+        lines = content.splitlines()
+
+        # Find the method definition
+        method_start = None
+        method_end = None
+        indent_level = None
+
+        for i, line in enumerate(lines):
+            # Look for method definition
+            if f"def {method_name}(" in line:
+                method_start = i
+                # Get the indentation level
+                indent_level = len(line) - len(line.lstrip())
+                continue
+
+            # If we found the method start, look for the end
+            if method_start is not None:
+                # Check if this line is at the same or less indentation (end of method)
+                if line.strip() and len(line) - len(line.lstrip()) <= indent_level:
+                    method_end = i
+                    break
+
+        if method_start is not None:
+            if method_end is None:
+                method_end = len(lines)
+
+            # Extract the method code
+            method_lines = lines[method_start:method_end]
+            return "\n".join(method_lines)
+
+        return None
+
+    except Exception as e:
+        print(f"Failed to extract test method {method_name} from {file_path}: {e}")
+        return None
 
 
 def remove_python_comments(source: str) -> Optional[str]:

@@ -26,101 +26,17 @@ class PythonUtils(LanguageUtils):
         Returns:
             Optional[Tuple[str, str]]: None if the bug is not single-function, otherwise a tuple of the form (buggy_code, fixed_code)
         """
-        # Get buggy and fixed path
-        # TODO: Make more generic
-        project_name, _ = bug.get_identifier().rsplit("-", 1)
-        buggy_path = fixed_path = (
-            f"./benchmarks/BugsInPy/framework/bin/temp/{project_name}"
-        )
+        from elleelleaime.core.utils.python.python import extract_single_function
 
-        try:
-            # Buggy code
-            # Checkout the buggy version of the bug
-            bug.checkout(bug.get_identifier(), fixed=0)
-            bug.compile(bug.get_identifier())
-
-            # Check if the bug is inverted
-            diff = PatchSet(bug.get_ground_truth())
-
-            if bug.is_ground_truth_inverted():
-                buggy_file_path = Path(buggy_path, super().get_target_filename(diff))
-                modified_buggy_lines = super().get_modified_target_lines(diff)
-            else:
-                buggy_file_path = Path(buggy_path, super().get_source_filename(diff))
-                modified_buggy_lines = super().get_modified_source_lines(diff)
-
-            # Run code extractor for the buggy function
-            def extract_code(file_path: Path, modified_lines: List[int]):
-                try:
-                    # Read all lines of the file
-                    with file_path.open("r", encoding="utf-8") as f:
-                        lines = f.readlines()
-
-                    # Extract the modified lines
-                    code = "".join(
-                        lines[line - 1]
-                        for line in modified_lines
-                        if 0 < line <= len(lines)
-                    )
-
-                    return code.strip()
-
-                except Exception as e:
-                    print(f"Failed to extract code from {file_path} with error: {e}")
-                    return ""
-
-            buggy_code = extract_code(buggy_file_path, modified_buggy_lines)
-
-            # Fixed code
-            # Checkout the fixed version of the bug
-            bug.checkout(bug.get_identifier(), fixed=1)
-            bug.compile(bug.get_identifier())
-
-            # Check if the bug is inverted
-            diff = PatchSet(bug.get_ground_truth())
-
-            if bug.is_ground_truth_inverted():
-                fixed_file_path = Path(fixed_path, super().get_source_filename(diff))
-                modified_fixed_lines = super().get_modified_source_lines(diff)
-            else:
-                fixed_file_path = Path(fixed_path, super().get_target_filename(diff))
-                modified_fixed_lines = super().get_modified_target_lines(diff)
-
-            # Run code extractor for the fixed function
-            fixed_code = extract_code(fixed_file_path, modified_fixed_lines)
-
-            # HACK: sometimes we are not able to properly retrieve the code at the function-level
-            # This happens in cases suchas Closure-46 where a whole function is removed
-            # To detected and circumvent such cases, we check that the function_diff is equivalent to the original diff
-            # If the diffs are not equivalent, we try to fix the function diff by setting the fixed_code and buggy_code to empty
-            # If on of these works we assume it as correct (since the diff is now equivalent to the original one)
-            fdiff = super().compute_diff(buggy_code, fixed_code)
-            if not super().assert_same_diff(
-                diff, fdiff, original_inverted=bug.is_ground_truth_inverted()
-            ):
-                fdiff = super().compute_diff(buggy_code, "")
-                if super().assert_same_diff(
-                    diff, fdiff, original_inverted=bug.is_ground_truth_inverted()
-                ):
-                    fixed_code = ""
-                else:
-                    fdiff = super().compute_diff("", fixed_code)
-                    if super().assert_same_diff(
-                        diff, fdiff, original_inverted=bug.is_ground_truth_inverted()
-                    ):
-                        buggy_code = ""
-                    else:
-                        return None
-
-            return buggy_code, fixed_code
-
-        finally:
-            # Remove checked-out bugs
-            shutil.rmtree(buggy_path, ignore_errors=True)
-            shutil.rmtree(fixed_path, ignore_errors=True)
+        return extract_single_function(bug)
 
     def extract_failing_test_cases(self, bug: RichBug) -> dict[str, str]:
-        pass
+        """
+        Extracts the code of the failing test cases of a bug.
+        """
+        from elleelleaime.core.utils.python.python import extract_failing_test_cases
+
+        return extract_failing_test_cases(bug)
 
     def remove_comments(self, source: str):
         try:

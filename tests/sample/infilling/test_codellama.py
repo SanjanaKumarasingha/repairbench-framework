@@ -103,6 +103,38 @@ class TestInfillingCodellama:
         # Assert that the prompt is properly constructed
         assert sample["prompt"].count("<FILL_ME>") == 1
 
+    def test_pysnooper_3(self):
+        bug = TestInfillingCodellama.BUGSINPY.get_bug("PySnooper-3")
+        assert bug is not None
+
+        sample = generate_sample(
+            bug=bug,
+            prompt_strategy=TestInfillingCodellama.PROMPT_STRATEGY,
+            language=TestInfillingCodellama.PYTHON,
+            model_name=TestInfillingCodellama.MODEL_NAME,
+        )
+
+        # Assert we are dealing with the correct bug and strategy
+        assert sample["identifier"] == "PySnooper-3"
+        assert sample["prompt_strategy"] == "infilling"
+
+        # Assert that the buggy code and fixed code are properly extracted
+        assert sample["buggy_code"] is not None
+        assert sample["fixed_code"] is not None
+        assert sample["prompt"] is not None
+
+        # Assert that the buggy code contains the incorrect variable name
+        assert "output_path" in sample["buggy_code"]
+        assert "with open(output_path, 'a') as output_file:" in sample["buggy_code"]
+
+        # Assert that the fixed code contains the correct variable name
+        assert "output" in sample["fixed_code"]
+        assert "with open(output, 'a') as output_file:" in sample["fixed_code"]
+        assert "output_path" not in sample["fixed_code"]
+
+        # Assert that the prompt is properly constructed
+        assert sample["prompt"].count("<FILL_ME>") == 1
+
     def test_closure_46(self):
         bug = TestInfillingCodellama.DEFECTS4J.get_bug("Closure-46")
         assert bug is not None
