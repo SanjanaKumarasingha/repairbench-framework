@@ -116,64 +116,38 @@ class TestBugsInPy:
 
     def run_bug(self, bug: Bug) -> bool:
         project_name, _ = bug.get_identifier().rsplit("-", 1)
-        print(f"\n=== Starting run_bug for {bug.get_identifier()} ===")
 
         try:
             # Checkout buggy version
-            print(f"Checking out buggy version for {bug.get_identifier()}")
             checkout_success = bug.checkout(bug.get_identifier(), fixed=False)
-            print(f"Buggy checkout success: {checkout_success}")
             if not checkout_success:
-                print(f"Failed to checkout buggy version for {bug.get_identifier()}")
                 return False
 
             # Compile buggy version
-            print(f"Compiling buggy version for {bug.get_identifier()}")
             compile_result = bug.compile(bug.get_identifier())
-            print(f"Buggy compile result: {compile_result.is_passing()}")
             if not compile_result.is_passing():
-                print(f"Failed to compile buggy version for {bug.get_identifier()}")
                 return False
 
             # Test buggy version
-            print(f"Testing buggy version for {bug.get_identifier()}")
             test_result = bug.test(bug.get_identifier())
-            print(
-                f"Buggy version test result for {bug.get_identifier()}: {test_result.is_passing()}"
-            )
-
-            # For BugsInPy, the buggy version might pass tests
-            # This is not necessarily a failure - we just need to check that the fixed version works
 
             # Checkout fixed version
-            print(f"Checking out fixed version for {bug.get_identifier()}")
             checkout_success = bug.checkout(bug.get_identifier(), fixed=True)
-            print(f"Fixed checkout success: {checkout_success}")
             if not checkout_success:
-                print(f"Failed to checkout fixed version for {bug.get_identifier()}")
                 return False
 
             # Compile fixed version
-            print(f"Compiling fixed version for {bug.get_identifier()}")
             compile_result = bug.compile(bug.get_identifier())
-            print(f"Fixed compile result: {compile_result.is_passing()}")
             if not compile_result.is_passing():
-                print(f"Failed to compile fixed version for {bug.get_identifier()}")
                 return False
 
             # Test fixed version
-            print(f"Testing fixed version for {bug.get_identifier()}")
             test_result = bug.test(bug.get_identifier())
-            print(
-                f"Fixed version test result for {bug.get_identifier()}: {test_result.is_passing()}"
-            )
 
             # The fixed version should pass tests
             if not test_result.is_passing():
-                print(f"Fixed version failed tests for {bug.get_identifier()}")
                 return False
 
-            print(f"=== SUCCESS: {bug.get_identifier()} passed all tests ===")
             return True
         except Exception as e:
             print(f"Exception in run_bug for {bug.get_identifier()}: {e}")
@@ -200,11 +174,10 @@ class TestBugsInPy:
         assert bugs is not None
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-            # for bug in bugs[:3]:  # Only run the first bugs
             for bug in bugs[:3]:  # Run first 3 bugs
                 # Skip PySnooper-2 due to dependency issue with PySnooper-1
+                # TODO: Remove bug
                 if bug.get_identifier() == "PySnooper-2":
-                    print(f"Skipping {bug.get_identifier()} due to dependency issue")
                     continue
                 assert self.run_bug(bug), f"Failed run for {bug.get_identifier()}"
 
@@ -294,7 +267,5 @@ class TestBugsInPy:
 
         # Test just the first bug
         bug = bugs[0]
-        print(f"\nTesting single bug: {bug.get_identifier()}")
         result = self.run_bug(bug)
-        print(f"Result: {result}")
         assert result, f"Failed run for {bug.get_identifier()}"

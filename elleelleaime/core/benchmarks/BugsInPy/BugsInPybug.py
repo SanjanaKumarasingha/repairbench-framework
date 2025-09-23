@@ -93,10 +93,6 @@ class BugsInPyBug(RichBug):
         if "OK" in last_line or "passed" in last_line or "PASSED" in last_line:
             success = True
 
-        print(f"{project_name=}")
-        print(f"{bug_id=}")
-        print(f"{stdout_lines=}")
-
         return TestResult(success)
 
     def get_src_test_dir(self, path: str) -> str:
