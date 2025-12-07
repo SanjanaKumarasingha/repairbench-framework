@@ -49,7 +49,10 @@ def entry_point(
 
         # Launch a thread for each bug
         future_to_bug = {}
+        # target_id="Chart-1"
         for bug in benchmark_obj.get_bugs():
+            # if bug.get_identifier()!= target_id:
+            #     continue
             future = executor.submit(generate_sample, bug, prompt_strategy, **kwargs)
             future_to_bug[future] = bug
             futures.append(future)

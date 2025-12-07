@@ -68,10 +68,13 @@ def entry_point(
         logging.info("Evaluating candidates...")
         results = []
         for future in tqdm.tqdm(as_completed(futures), total=len(futures)):
+            logging.info("One candidate evaluated.")
             results.append(future.result())
+            logging.info(f"Evaluated {len(results)}/{len(futures)} candidates.")
         samples = results
 
     # Write results to jsonl file
+    logging.info("Writing evaluation results...")
     write_jsonl(
         os.path.join(
             dir_path, f"evaluation_{benchmark}_{prompt_strategy}_{model_name}.jsonl"

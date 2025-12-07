@@ -15,10 +15,12 @@ def generate_candidate(chunk: List[dict], strategy_name: str, **kwargs) -> List[
     """
     Generates the candidate patch for the given sample and model.
     """
+    # print(f"chunk: {chunk}")
 
     generation_strategy = PatchGenerationStrategyRegistry.get_generation(
         strategy_name, **kwargs
     )
+    # print(f"generation_strategy: {generation_strategy}")
 
     chunk_to_generate = [
         sample
@@ -31,11 +33,23 @@ def generate_candidate(chunk: List[dict], strategy_name: str, **kwargs) -> List[
             and not any("error" in generation for generation in sample["generation"])
         )
     ]
+    # print(f"chunk_to_generate: {chunk_to_generate}")
     logging.info(f"Gerating patches for {len(chunk_to_generate)} samples...")
     non_empty_prompt_chunk = [sample["prompt"] for sample in chunk_to_generate]
+    # print(f"non_empty_prompt_chunk: {non_empty_prompt_chunk}")
     generations = generation_strategy.generate(non_empty_prompt_chunk)
+    # print(f"generations: {generations}")
+    # generations = [
+    #     generation.replace("</s>\n", "") if isinstance(generation, str) else generation
+    #     for generation in generations
+    # ]
+
 
     for generation, sample in zip(generations, chunk_to_generate):
+        if isinstance(generation, list):
+            generation = [g.replace("</s>\n", "") if isinstance(g, str) else g for g in generation]
+        elif isinstance(generation, str):
+            generation = generation.replace("</s>\n", "")
         sample["generation"] = generation
 
     for sample in chunk:
