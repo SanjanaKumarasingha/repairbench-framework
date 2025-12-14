@@ -1,10 +1,10 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+
 from elleelleaime.core.utils.benchmarks import get_benchmark
 from elleelleaime.core.benchmarks.bug import Bug
 from elleelleaime.core.utils.jsonl import stream_jsonl, write_jsonl
 from elleelleaime.evaluate.strategies.registry import PatchEvaluationStrategyRegistry
-
-from pathlib import Path
 
 import numpy as np
 import fire

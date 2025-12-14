@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from elleelleaime.core.utils.jsonl import stream_jsonl, write_jsonl
 from elleelleaime.generate.strategies.registry import PatchGenerationStrategyRegistry
 

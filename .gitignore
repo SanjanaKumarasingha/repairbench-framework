@@ -12,6 +12,10 @@ __pycache__/
 # C extensions
 *.so
 
+# Remove all json files
+*.json
+*.jsonl
+
 # Log or temporary files
 output/
 

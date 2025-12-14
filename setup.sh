@@ -5,7 +5,8 @@ git submodule init;
 git submodule update;
 
 ### Java and Maven images
-docker pull openjdk:11;
+docker pull eclipse-temurin:11-jdk
+docker tag eclipse-temurin:11-jdk openjdk:11
 docker pull maven:3.9.8-eclipse-temurin-8;
 
 ### Defects4J image
