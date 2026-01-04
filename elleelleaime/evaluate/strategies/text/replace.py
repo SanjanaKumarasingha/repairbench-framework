@@ -14,6 +14,7 @@ from elleelleaime.core.caching.cache import Cache
 class ReplaceEvaluationStrategy(PatchEvaluationStrategy):
 
     def __init__(self, **kwargs):
+        # logging.info("Initializing ReplaceEvaluationStrategy...")
         super().__init__(**kwargs)
         self.use_cache = kwargs.get("use_cache", True)
         self.cache_path = kwargs.get(
@@ -26,6 +27,7 @@ class ReplaceEvaluationStrategy(PatchEvaluationStrategy):
         self, bug: Bug, sample: dict, generation: Optional[str]
     ) -> Optional[dict]:
         # If the generation is None, we skip the evaluation
+        # print(f"Generation to evaluate: {generation}")
         result = {
             "generation": generation,
             "exact_match": False,
@@ -53,6 +55,7 @@ class ReplaceEvaluationStrategy(PatchEvaluationStrategy):
             bug.get_identifier(),
             str(uuid4()),
         )
+        print(f"Using temporary path for evaluation: {buggy_path}")
 
         # Remove comments and empty lines from the generated code and the fixed code
         generation_no_comments = remove_java_comments(generation)
@@ -63,10 +66,11 @@ class ReplaceEvaluationStrategy(PatchEvaluationStrategy):
             return result
         generation_no_comments = remove_empty_lines(generation_no_comments)
         generation_no_comments = generation_no_comments.splitlines()
-        fixed_code_no_comments = remove_empty_lines(
-            remove_java_comments(sample["fixed_code"])
-        )
+        # logging.info(f"generation_no_comments:\n{generation_no_comments}")
+
+        fixed_code_no_comments = remove_empty_lines(remove_java_comments(sample["fixed_code"]))
         fixed_code_no_comments = fixed_code_no_comments.splitlines()
+        # logging.info(f"fixed_code_no_comments:\n{fixed_code_no_comments}")
 
         result["exact_match"] = len(generation_no_comments) == len(
             fixed_code_no_comments
@@ -89,7 +93,6 @@ class ReplaceEvaluationStrategy(PatchEvaluationStrategy):
             if self.use_cache:
                 self.cache.save_to_cache_from_bug(bug, generation, result)
             return result
-
         try:
             # Note: this diff is inverted, i.e. the target file is the buggy file
             diff = PatchSet(bug.get_ground_truth())
@@ -119,17 +122,22 @@ class ReplaceEvaluationStrategy(PatchEvaluationStrategy):
 
             with open(buggy_file_path, "r", encoding="ISO-8859-1") as f:
                 buggy_code = f.read()
+                buggy_code = remove_java_comments(buggy_code)
+                buggy_code = remove_empty_lines(buggy_code)
+                buggy_code = buggy_code.replace("\r\n", "\n").replace("\r", "\n")
+            # Remove comments and empty lines from the buggy code
+                # print(f"Buggy code after removing comments and empty lines:\n{buggy_code}")
 
             # Check that buggy code exists
-            if sample["buggy_code"] not in buggy_code:
+            if sample["buggy_code"].replace("\r\n", "\n").replace("\r", "\n") not in buggy_code:
                 logging.error(
                     f"Could not find buggy code in {buggy_file_path} for {sample['identifier']}"
                 )
                 return None
 
             # Get the fixed and candidate code
-            fixed_code = buggy_code.replace(sample["buggy_code"], sample["fixed_code"])
-            candidate_code = buggy_code.replace(sample["buggy_code"], generation)
+            fixed_code = buggy_code.replace(sample["buggy_code"].replace("\r\n", "\n").replace("\r", "\n"), sample["fixed_code"].replace("\r\n", "\n").replace("\r", "\n"))
+            candidate_code = buggy_code.replace(sample["buggy_code"].replace("\r\n", "\n").replace("\r", "\n"), generation.replace("\r\n", "\n").replace("\r", "\n"))
 
             # Compute plausible match
             # Write the generated code to the file
@@ -143,10 +151,12 @@ class ReplaceEvaluationStrategy(PatchEvaluationStrategy):
 
             # Evaluate the buggy code
             compilation_result = bug.compile(buggy_path)
+            print(f"Compilation result: {compilation_result}")
             result["compile"] = compilation_result.is_passing()
             # If it compiles, test the code
-            if result["compile"] or result["compile"] is None:
+            if result["compile"]:
                 test_result = bug.test(buggy_path)
+                print(f"Test result: {test_result}")
                 result["test"] = test_result.is_passing()
                 # If the tests pass, check if the ASTs match
                 # Note: we do not for AST matching before because the ast matcher returns false positives in some cases

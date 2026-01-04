@@ -21,23 +21,13 @@ class InfillingPrompting(PromptingStrategy):
             "extra_mask_token": False,
             "single_chunk": True,
         },
-        # Add the model you want to use here
-        "deepseek": {
-            "mask_token": "<｜fim▁hole｜>",
-            "extra_mask_token": False,
-            "single_chunk": True,
-            "begin_fim": "<｜fim▁begin｜>",
-            "end_fim": "<｜fim▁end｜>",
-        },
     }
 
     def __init__(self, **kwargs):
         super().__init__("infilling")
 
         self.model_name: str = kwargs.get("model_name", "").strip().lower()
-        assert (
-            self.model_name in self.MODEL_DICT.keys()
-        ), f"Unknown model name: {kwargs.get('model_name', None)}"
+        assert (self.model_name in self.MODEL_DICT.keys()), f"Unknown model name: {kwargs.get('model_name', None)}"
         model_kwargs = self.MODEL_DICT.get(self.model_name, {})
         self.original_mask_token: str = model_kwargs["mask_token"]
         self.begin_fim: str = model_kwargs.get("begin_fim", None)
@@ -45,7 +35,7 @@ class InfillingPrompting(PromptingStrategy):
         self.extra_mask_token: bool = model_kwargs.get("extra_mask_token", False)
         self.single_chunk: bool = model_kwargs.get("single_chunk", True)
         self.keep_buggy_code: bool = kwargs.get("keep_buggy_code", False)
-        self.keep_comments: bool = kwargs.get("keep_comments", True)
+        self.keep_comments: bool = kwargs.get("keep_comments", False)
 
     def generate_masking_prompt(self, line_to_replace: str, mask_id: int) -> str:
         """Generate the mask token to be inserted, according to the mask idx."""
@@ -150,9 +140,8 @@ class InfillingPrompting(PromptingStrategy):
 
         return prompt
 
-    def cloze_prompt(
-        self, bug: Bug
-    ) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    def cloze_prompt(self, bug: Bug) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+        # print(f"ClOZE prompt for bug {bug.get_identifier()}")
         """
         Builds a cloze prompt for the given bug.
 
@@ -161,7 +150,10 @@ class InfillingPrompting(PromptingStrategy):
         Returns:
             Tuple: A tuple of the form (buggy_code, fixed_code, prompt).
         """
+        print(f"Building cloze prompt for bug {bug.get_identifier()}")
         result = extract_single_function(bug)
+        print(f"Extracted function for bug {bug.get_identifier()}: {result}\n")
+        # print(f"Extracted function for bug {bug.get_identifier()}: {result}\n")
 
         if result is None:
             return None, None, None
@@ -169,20 +161,29 @@ class InfillingPrompting(PromptingStrategy):
         buggy_code, fixed_code = result
 
         if not self.keep_comments:
+            # print(f"Removing comments for bug {bug.get_identifier()}")
             buggy_code_prompt = remove_java_comments(buggy_code)
             fixed_code_prompt = remove_java_comments(fixed_code)
         else:
             buggy_code_prompt = buggy_code
             fixed_code_prompt = fixed_code
 
+        # print(f"Removing empty lines for bug {bug.get_identifier()}")
         buggy_code_prompt = remove_empty_lines(buggy_code_prompt)
         fixed_code_prompt = remove_empty_lines(fixed_code_prompt)
 
         if self.single_chunk:
+            # print(f"Building single cloze prompt for bug single {bug.get_identifier()}")
             prompt = self.build_single_cloze_prompt(
                 buggy_code_prompt, fixed_code_prompt
             )
         else:
+            # print(f"Building multi cloze prompt for bug {bug.get_identifier()}")
+            buggy_code_prompt = remove_java_comments(buggy_code)
+            fixed_code_prompt = remove_java_comments(fixed_code)
+            prompt = self.build_multi_cloze_prompt(buggy_code_prompt, fixed_code_prompt)
+            buggy_code_prompt = remove_java_comments(buggy_code)
+            fixed_code_prompt = remove_java_comments(fixed_code)
             prompt = self.build_multi_cloze_prompt(buggy_code_prompt, fixed_code_prompt)
 
         if self.begin_fim:
@@ -190,7 +191,7 @@ class InfillingPrompting(PromptingStrategy):
         if self.end_fim:
             prompt = f"{prompt}{self.end_fim}"
 
-        return buggy_code, fixed_code, prompt
+        return buggy_code_prompt, fixed_code_prompt, prompt
 
     def prompt(self, bug: Bug) -> dict[str, Optional[str]]:
         """
@@ -208,6 +209,7 @@ class InfillingPrompting(PromptingStrategy):
         }
 
         diff = PatchSet(bug.get_ground_truth())
+        
         # This strategy only supports single-file prompts
         if len(diff) != 1:
             return result

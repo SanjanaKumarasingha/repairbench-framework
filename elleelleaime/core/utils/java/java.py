@@ -157,12 +157,14 @@ def extract_single_function(bug: Bug) -> Optional[Tuple[str, str]]:
         bug.get_identifier(),
         str(uuid4()),
     )
+    print(buggy_path)
     fixed_path = Path(
         tempfile.gettempdir(),
         f"elleelleaime-{getpass.getuser()}",
         bug.get_identifier(),
         str(uuid4()),
     )
+    print(fixed_path)
 
     try:
         # Checkout the buggy and fixed versions of the bug
@@ -215,19 +217,13 @@ def extract_single_function(bug: Bug) -> Optional[Tuple[str, str]]:
         # If the diffs are not equivalent, we try to fix the function diff by setting the fixed_code and buggy_code to empty
         # If on of these works we assume it as correct (since the diff is now equivalent to the original one)
         fdiff = compute_diff(buggy_code, fixed_code)
-        if not assert_same_diff(
-            diff, fdiff, original_inverted=bug.is_ground_truth_inverted()
-        ):
+        if not assert_same_diff(diff, fdiff, original_inverted=bug.is_ground_truth_inverted()):
             fdiff = compute_diff(buggy_code, "")
-            if assert_same_diff(
-                diff, fdiff, original_inverted=bug.is_ground_truth_inverted()
-            ):
+            if assert_same_diff(diff, fdiff, original_inverted=bug.is_ground_truth_inverted()):
                 fixed_code = ""
             else:
                 fdiff = compute_diff("", fixed_code)
-                if assert_same_diff(
-                    diff, fdiff, original_inverted=bug.is_ground_truth_inverted()
-                ):
+                if assert_same_diff(diff, fdiff, original_inverted=bug.is_ground_truth_inverted()):
                     buggy_code = ""
                 else:
                     return None

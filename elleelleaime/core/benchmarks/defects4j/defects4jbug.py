@@ -45,12 +45,14 @@ class Defects4JBug(RichBug):
         )
 
         # Convert line endings to unix
+        # Try to check this agin when
         dos2unix_run = subprocess.run(
             f"find {path} -type f -print0 | xargs -0 -n 1 -P 4 dos2unix",
             shell=True,
             capture_output=True,
-            check=True,
+            check=False,
         )
+
 
         return checkout_run.returncode == 0 and dos2unix_run.returncode == 0
 
@@ -64,27 +66,61 @@ class Defects4JBug(RichBug):
         return CompileResult(run.returncode == 0)
 
     def test(self, path: str) -> TestResult:
-        # First run only relevant tests
-        run = subprocess.run(
-            f"cd {path} && timeout {30*60} {self.benchmark.get_bin()} test -r",
+    # 1) Run relevant tests first
+        run_rel = subprocess.run(
+            f"cd {path} && timeout {3*60} {self.benchmark.get_bin()} test -r",
             shell=True,
             capture_output=True,
             check=False,
         )
-        m = re.search(r"Failing tests: ([0-9]+)", run.stdout.decode("utf-8"))
-        if not (run.returncode == 0 and m != None and int(m.group(1)) == 0):
-            return TestResult(False)
+        out_rel = run_rel.stdout.decode("utf-8", errors="ignore")
 
-        # Only run the whole test suite if the relevant tests pass
+        m_rel = re.search(r"Failing tests: ([0-9]+)", out_rel)
+        relevant_ok = (
+            run_rel.returncode == 0
+            and m_rel is not None
+            and int(m_rel.group(1)) == 0
+        )
+
+        if not relevant_ok:
+            return TestResult(success=False)
+
+        # 2) Run full test suite
         run = subprocess.run(
-            f"cd {path} && timeout {30*60} {self.benchmark.get_bin()} test",
+            f"cd {path} && timeout {3*60} {self.benchmark.get_bin()} test",
             shell=True,
             capture_output=True,
             check=False,
         )
-        m = re.search(r"Failing tests: ([0-9]+)", run.stdout.decode("utf-8"))
-        return TestResult(run.returncode == 0 and m != None and int(m.group(1)) == 0)
+        out = run.stdout.decode("utf-8", errors="ignore")
 
+        # Parse summary
+        m_summary = re.search(
+            r"Tests run: (\d+), Failures: (\d+), Errors: (\d+), Skipped: (\d+)",
+            out,
+        )
+
+        if m_summary:
+            tests_run = int(m_summary.group(1))
+            failures = int(m_summary.group(2))
+            errors = int(m_summary.group(3))
+        else:
+            tests_run = failures = errors = None
+
+        # Check pass/fail (legacy)
+        m_fail = re.search(r"Failing tests: ([0-9]+)", out)
+        success = (
+            run.returncode == 0
+            and m_fail is not None
+            and int(m_fail.group(1)) == 0
+        )
+
+        return TestResult(
+            success=success,
+            tests_run=tests_run,
+            failures=failures,
+            errors=errors,
+        )
     def get_src_test_dir(self, path: str) -> str:
         run = subprocess.run(
             f"cd {path} && {self.benchmark.get_bin()} export -p dir.src.tests",
