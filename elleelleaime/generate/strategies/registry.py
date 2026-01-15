@@ -29,9 +29,7 @@ from elleelleaime.generate.strategies.models.huggingface.repairllama.repairllama
 # from elleelleaime.generate.strategies.models.litellm.litellm import (
 #     LiteLLMChatCompletionModels,
 # )
-from elleelleaime.generate.strategies.models.huggingface.repairllama.repairllama_ir3_or2 import (
-    RepairLLaMAIR3OR2,
-)
+
 
 from typing import Tuple
 
@@ -50,7 +48,6 @@ class PatchGenerationStrategyRegistry:
         "codellama-infilling": (CodeLLaMAInfilling, ("model_name",)),
         "codellama-instruct": (CodeLLaMAIntruct, ("model_name",)),
         "repairllama-infilling": (RepairLLaMAInfilling, ("model_name",)),
-        "repairllama-ir3-or2": (RepairLLaMAIR3OR2, ("model_name",)),
         # "anthropic": (AnthropicModels, ("model_name", "max_tokens")),
         # "mistral": (MistralModels, ("model_name",)),
         # "deepseek-fim": (DeepSeekFIM, ("model_name",)),

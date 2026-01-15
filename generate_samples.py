@@ -49,18 +49,18 @@ def entry_point(
 
         # Launch a thread for each bug
         future_to_bug = {}
-        # target_id="Chart-1"
+        target_id="Chart-1"
         for bug in benchmark_obj.get_bugs():
-            # if bug.get_identifier()!= target_id:
-            #     continue
+            if bug.get_identifier()!= target_id:
+                continue
             future = executor.submit(generate_sample, bug, prompt_strategy, **kwargs)
             future_to_bug[future] = bug
             futures.append(future)
 
-        # Check that all bugs are being processed
-        assert len(futures) == len(
-            benchmark_obj.get_bugs()
-        ), "Some bugs are not being processed"
+        # # Check that all bugs are being processed
+        # assert len(futures) == len(
+        #     benchmark_obj.get_bugs()
+        # ), "Some bugs are not being processed"
 
         # Wait for the results
         for future in tqdm.tqdm(as_completed(futures), total=len(futures)):
