@@ -317,6 +317,7 @@ def entry_point(
     benchmark: str,
     samples_path: str,
     output_dir: Optional[str] = None,
+    iterations: int = 1,
     **kwargs,
 ):
     """
@@ -336,7 +337,7 @@ def entry_point(
     statistics = compute_statistics(samples)
     with open(
         os.path.join(
-            dir_path, f"statistics_{benchmark}_{prompt_strategy}_{provider}.json"
+            dir_path, f"statistics_{benchmark}_{prompt_strategy}_{provider}_{iterations}.json"
         ),
         "w",
     ) as f:
