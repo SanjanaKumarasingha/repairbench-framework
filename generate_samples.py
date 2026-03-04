@@ -49,7 +49,7 @@ def entry_point(
 
         # Launch a thread for each bug
         future_to_bug = {}
-        target_id="Chart-1"
+        target_id="Cli-2"
         for bug in benchmark_obj.get_bugs():
             if bug.get_identifier()!= target_id:
                 continue
