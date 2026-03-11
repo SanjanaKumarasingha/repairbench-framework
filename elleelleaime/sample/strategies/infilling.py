@@ -21,6 +21,16 @@ class InfillingPrompting(PromptingStrategy):
             "extra_mask_token": False,
             "single_chunk": True,
         },
+        "salesforce/codet5-small": {
+            "mask_token": "<extra_id_0>",
+            "extra_mask_token": False,
+            "single_chunk": True,
+        },
+        "salesforce/codet5-large": {
+            "mask_token": "<extra_id_0>",
+            "extra_mask_token": False,
+            "single_chunk": True,
+        }
     }
 
     def __init__(self, **kwargs):
@@ -152,7 +162,6 @@ class InfillingPrompting(PromptingStrategy):
         """
         print(f"Building cloze prompt for bug {bug.get_identifier()}")
         result = extract_single_function(bug)
-        print(f"Extracted function for bug {bug.get_identifier()}: {result}\n")
         # print(f"Extracted function for bug {bug.get_identifier()}: {result}\n")
 
         if result is None:

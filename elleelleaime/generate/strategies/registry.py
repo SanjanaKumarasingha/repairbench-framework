@@ -1,10 +1,4 @@
 from elleelleaime.generate.strategies.strategy import PatchGenerationStrategy
-# from elleelleaime.generate.strategies.models.openai.openai import (
-#     OpenAIChatCompletionModels,
-# )
-# from elleelleaime.generate.strategies.models.google.google import (
-#     GoogleModels,
-# )
 from elleelleaime.generate.strategies.models.huggingface.codellama.codellama_infilling import (
     CodeLLaMAInfilling,
 )
@@ -14,21 +8,12 @@ from elleelleaime.generate.strategies.models.huggingface.codellama.codellama_ins
 from elleelleaime.generate.strategies.models.huggingface.repairllama.repairllama_infilling import (
     RepairLLaMAInfilling,
 )
-# from elleelleaime.generate.strategies.models.openrouter.openrouter import (
-#     OpenRouterModels,
-# )
-# from elleelleaime.generate.strategies.models.anthropic.anthropic import (
-#     AnthropicModels,
-# )
-# from elleelleaime.generate.strategies.models.mistral.mistral import (
-#     MistralModels,
-# )
-# from elleelleaime.generate.strategies.models.huggingface.deepseek.deepseek_fim import (
-#     DeepSeekFIM,
-# )
-# from elleelleaime.generate.strategies.models.litellm.litellm import (
-#     LiteLLMChatCompletionModels,
-# )
+from elleelleaime.generate.strategies.models.huggingface.codet5.codet5small_infilling import (
+    CodeT5PatchGeneration,
+)
+from elleelleaime.generate.strategies.models.huggingface.gpt.gpt2_infilling import (
+    GPT2PatchGeneration,
+)
 
 
 from typing import Tuple
@@ -42,16 +27,11 @@ class PatchGenerationStrategyRegistry:
     # The registry is a dict of strategy names to a tuple of class and mandatory arguments to init the class
     # NOTE: Do not instantiate the model here, as we should only instanciate the class to be used
     __MODELS: dict[str, Tuple[type, Tuple]] = {
-        # "openai-chatcompletion": (OpenAIChatCompletionModels, ("model_name",)),
-        # "google": (GoogleModels, ("model_name",)),
-        # "openrouter": (OpenRouterModels, ("model_name",)),
         "codellama-infilling": (CodeLLaMAInfilling, ("model_name",)),
         "codellama-instruct": (CodeLLaMAIntruct, ("model_name",)),
         "repairllama-infilling": (RepairLLaMAInfilling, ("model_name",)),
-        # "anthropic": (AnthropicModels, ("model_name", "max_tokens")),
-        # "mistral": (MistralModels, ("model_name",)),
-        # "deepseek-fim": (DeepSeekFIM, ("model_name",)),
-        # "litellm-chatcompletion": (LiteLLMChatCompletionModels, ()),
+        "codet5-small_infilling": (CodeT5PatchGeneration, ("model_name",)),
+        "gpt2_infilling": (GPT2PatchGeneration, ("model_name",)),
     }
 
     @classmethod
