@@ -42,6 +42,7 @@ mistralai = "^1.2.3"
 pre-commit = "^4.1.0"
 litellm = "^1.67.0"
 peft = {git = "https://github.com/huggingface/peft"}
+javalang = "^0.13.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"

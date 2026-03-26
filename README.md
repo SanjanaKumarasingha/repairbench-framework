@@ -64,6 +64,17 @@ Example of how to export the evaluated patches:
 python export_results.py defects4j evaluation_defects4j_instruct_openai.jsonl --model_name gpt-4o-mini
 ```
 
+## ChatRepair
+
+The repository also includes a Defects4J ChatRepair runner that reuses the framework benchmark checkout/validation flow while keeping the iterative APR logic from the ChatRepair paper.
+
+Example:
+```bash
+python run_chatrepair.py openai-chatcompletion gpt-4o-mini --bug_id Chart-1 --single_function_prompt true --max_tries 24 --max_conv_len 3
+```
+
+The first positional argument is the framework generation strategy name and the second is the model name. The runner writes one JSONL result file under `results/chatrepair/`.
+
 
 ## Development
 
