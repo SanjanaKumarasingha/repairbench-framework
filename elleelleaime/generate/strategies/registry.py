@@ -11,9 +11,9 @@ from elleelleaime.generate.strategies.models.huggingface.repairllama.repairllama
 from elleelleaime.generate.strategies.models.huggingface.codet5.codet5small_infilling import (
     CodeT5PatchGeneration,
 )
-from elleelleaime.generate.strategies.models.huggingface.gpt.gpt2_infilling import (
-    GPT2PatchGeneration,
-)
+# from elleelleaime.generate.strategies.models.huggingface.gpt.gpt2_infilling import (
+#     GPT2PatchGeneration,
+# )
 
 
 from typing import Tuple
@@ -31,7 +31,7 @@ class PatchGenerationStrategyRegistry:
         "codellama-instruct": (CodeLLaMAIntruct, ("model_name",)),
         "repairllama-infilling": (RepairLLaMAInfilling, ("model_name",)),
         "codet5-small_infilling": (CodeT5PatchGeneration, ("model_name",)),
-        "gpt2_infilling": (GPT2PatchGeneration, ("model_name",)),
+        # "gpt2_infilling": (GPT2PatchGeneration, ("model_name",)),
     }
 
     @classmethod
