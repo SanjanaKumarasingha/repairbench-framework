@@ -187,51 +187,26 @@ def extract_single_function(bug: Bug) -> Optional[Tuple[str, str]]:
 
         # Run code extractor for the buggy function
         lines_args = " ".join([f"--lines {line}" for line in modified_buggy_lines])
-
-        try:
-            run = subprocess.run(
-                f'/usr/lib/jvm/java-11-openjdk-amd64/bin/java -jar extractor.jar -i "{buggy_file_path.absolute()}" {lines_args}',
-                shell=True,
-                capture_output=True,
-                text=True,
-            )
-
-            if run.returncode != 0:
-                print("failing... buggy")
-                print("return code:", run.returncode)
-                print("stderr:", run.stderr)
-                print("stdout:", run.stdout)
-                buggy_code = ""
-            else:
-                buggy_code = run.stdout
-
-        except Exception as e:
-            print("Exception while running extractor for buggy file")
-            print("error:", str(e))
-            buggy_code = ""
+        run = subprocess.run(
+            f'/usr/lib/jvm/java-11-openjdk-amd64/bin/java -jar extractor.jar -i "{buggy_file_path.absolute()}" {lines_args}',
+            shell=True,
+            capture_output=True,
+            text=True,
+        )
         if run.returncode != 0:
-            print("failing... buggy")
-            print("return code:", run.returncode)
-            print("stderr:", run.stderr)
-            print("stdout:", run.stdout)
             buggy_code = ""
         else:
-              buggy_code = run.stdout
+            buggy_code = run.stdout
 
         # Run code extractor for the fixed function
         lines_args = " ".join([f"--lines {line}" for line in modified_fixed_lines])
-        print("buggy path:", buggy_file_path)
-        print("exists before run:", buggy_file_path.exists())
-        print("parent exists:", buggy_file_path.parent.exists())
-#         print("lines_args:", repr(lines_args))
         run = subprocess.run(
-    f'/usr/lib/jvm/java-11-openjdk-amd64/bin/java -jar extractor.jar -i "{fixed_file_path.absolute()}" {lines_args}',
-    shell=True,
-    capture_output=True,
-    text=True,
-        )
+            f'/usr/lib/jvm/java-11-openjdk-amd64/bin/java -jar extractor.jar -i "{fixed_file_path.absolute()}" {lines_args}',
+            shell=True,
+            capture_output=True,
+            text=True,
+        )        
         if run.returncode != 0:
-            print("failing... fixs")
             fixed_code = ""
         else:
             fixed_code = run.stdout
@@ -317,11 +292,11 @@ def extract_failing_test_cases(bug: RichBug) -> dict[str, str]:
 
             # Run code extractor for the failing test case
             run = subprocess.run(
-    f'/usr/lib/jvm/java-11-openjdk-amd64/bin/java -jar extractor.jar -i "{test_class_path.absolute()}" --method "{method_name}"',
-    shell=True,
-    capture_output=True,
-    text=True,
-)
+                f'/usr/lib/jvm/java-11-openjdk-amd64/bin/java -jar extractor.jar -i "{test_class_path.absolute()}" --method "{method_name}"',
+                shell=True,
+                capture_output=True,
+                text=True,
+            )            
             if run.returncode == 0:
                 failing_test_cases[failing_test] = run.stdout
             else:

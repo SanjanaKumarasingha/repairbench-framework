@@ -43,6 +43,7 @@ class RepairLLaMAInfilling(PatchGenerationStrategy):
 
     __SUPPORTED_MODELS = {
         "ASSERT-KTH/RepairLLaMA-IR3-OR2",
+        "ASSERT-KTH/RepairLLAMA-IR4-OR2"
     }
 
     __GENERATION_STRATEGIES = {

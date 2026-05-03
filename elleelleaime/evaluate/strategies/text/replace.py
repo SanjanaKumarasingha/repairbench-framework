@@ -14,172 +14,143 @@ from elleelleaime.core.caching.cache import Cache
 class ReplaceEvaluationStrategy(PatchEvaluationStrategy):
 
     def __init__(self, **kwargs):
-        # logging.info("Initializing ReplaceEvaluationStrategy...")
         super().__init__(**kwargs)
         self.use_cache = kwargs.get("use_cache", True)
-        self.cache_path = kwargs.get(
-            "cache_path", Path(__file__).parent.parent.parent.parent.parent / "cache"
-        )
+        # Default cache path resolution
+        default_cache = Path(__file__).parent.parent.parent.parent.parent / "cache"
+        self.cache_path = kwargs.get("cache_path", default_cache)
+        
         if self.use_cache:
             self.cache = Cache(self.cache_path)
 
     def evaluate_generation(
         self, bug: Bug, sample: dict, generation: Optional[str]
     ) -> Optional[dict]:
-        # If the generation is None, we skip the evaluation
-        # print(f"Generation to evaluate: {generation}")
+        # Initialize the result object with all required keys to prevent schema mismatch
         result = {
             "generation": generation,
             "exact_match": False,
             "ast_match": False,
             "compile": False,
             "test": False,
+            "test_reward": 0.0,
         }
+
         if generation is None:
             return result
 
-        # Check if the evaluation is cached
+        # 1. Check Cache first
         if self.use_cache:
             evaluation = self.cache.load_from_cache_from_bug(bug, generation)
             if evaluation is not None:
+                # Critical: If your old cache doesn't have 'test_reward', 
+                # you may need to force a re-run or provide a default here.
                 return evaluation
-            else:
-                logging.info(
-                    f"Evaluation for {bug.get_identifier()} not found in cache."
-                )
 
-        # Otherwise, we evaluate the generation
+        # 2. Setup temporary workspace
         buggy_path = os.path.join(
             tempfile.gettempdir(),
             f"elleelleaime-{getpass.getuser()}",
             bug.get_identifier(),
             str(uuid4()),
         )
-        print(f"Using temporary path for evaluation: {buggy_path}")
 
-        # Remove comments and empty lines from the generated code and the fixed code
-        generation_no_comments = remove_java_comments(generation)
-        if generation_no_comments is None:
-            # Save the evaluation to the cache
-            if self.use_cache:
-                self.cache.save_to_cache_from_bug(bug, generation, result)
-            return result
-        generation_no_comments = remove_empty_lines(generation_no_comments)
-        generation_no_comments = generation_no_comments.splitlines()
-        # logging.info(f"generation_no_comments:\n{generation_no_comments}")
-
-        fixed_code_no_comments = remove_empty_lines(remove_java_comments(sample["fixed_code"]))
-        fixed_code_no_comments = fixed_code_no_comments.splitlines()
-        # logging.info(f"fixed_code_no_comments:\n{fixed_code_no_comments}")
-
-        result["exact_match"] = len(generation_no_comments) == len(
-            fixed_code_no_comments
-        ) and all(
-            [
-                x.strip() == y.strip()
-                for x, y in zip(
-                    generation_no_comments, fixed_code_no_comments, strict=True
-                )
-            ]
-        )
-
-        # If the generation is an exact match, there is no need to evaluate the AST, compile or test
-        if result["exact_match"]:
-            result["ast_match"] = True
-            result["compile"] = True
-            result["test"] = True
-
-            # Save the evaluation to the cache
-            if self.use_cache:
-                self.cache.save_to_cache_from_bug(bug, generation, result)
-            return result
         try:
-            # Note: this diff is inverted, i.e. the target file is the buggy file
-            diff = PatchSet(bug.get_ground_truth())
+            # 3. Exact Match Logic (String-based)
+            generation_no_comments = remove_java_comments(generation)
+            if generation_no_comments is None:
+                if self.use_cache:
+                    self.cache.save_to_cache_from_bug(bug, generation, result)
+                return result
 
-            # Checkout the buggy code
+            gen_clean = remove_empty_lines(generation_no_comments).splitlines()
+            fix_clean = remove_empty_lines(remove_java_comments(sample["fixed_code"])).splitlines()
+
+            # Check if lines match exactly (ignoring leading/trailing whitespace)
+            result["exact_match"] = len(gen_clean) == len(fix_clean) and all(
+                x.strip() == y.strip() for x, y in zip(gen_clean, fix_clean)
+            )
+
+            # If Exact Match, we shortcut the expensive compilation/test phase
+            if result["exact_match"]:
+                result["ast_match"] = True
+                result["compile"] = True
+                result["test"] = True
+                result["test_reward"] = 15.0
+                
+                if self.use_cache:
+                    self.cache.save_to_cache_from_bug(bug, generation, result)
+                return result
+
+            # 4. Deep Evaluation (Compile & Test)
+            diff = PatchSet(bug.get_ground_truth())
             bug.checkout(buggy_path, fixed=False)
 
-            # Locate and load the buggy file
+            # Resolve buggy file path
             if bug.is_ground_truth_inverted():
-                buggy_file_path = os.path.join(
-                    buggy_path,
-                    (
-                        diff[0].target_file[2:]
-                        if diff[0].target_file.startswith("b/")
-                        else diff[0].target_file
-                    ),
-                )
+                rel_path = diff[0].target_file[2:] if diff[0].target_file.startswith("b/") else diff[0].target_file
             else:
-                buggy_file_path = os.path.join(
-                    buggy_path,
-                    (
-                        diff[0].source_file[2:]
-                        if diff[0].source_file.startswith("a/")
-                        else diff[0].source_file
-                    ),
-                )
+                rel_path = diff[0].source_file[2:] if diff[0].source_file.startswith("a/") else diff[0].source_file
+            
+            buggy_file_path = os.path.join(buggy_path, rel_path)
 
             with open(buggy_file_path, "r", encoding="ISO-8859-1") as f:
                 buggy_code = f.read()
-                buggy_code = remove_java_comments(buggy_code)
-                buggy_code = remove_empty_lines(buggy_code)
-                buggy_code = buggy_code.replace("\r\n", "\n").replace("\r", "\n")
-            # Remove comments and empty lines from the buggy code
-                # print(f"Buggy code after removing comments and empty lines:\n{buggy_code}")
+                # Normalize line endings and clean for matching
+                buggy_code_clean = remove_empty_lines(remove_java_comments(buggy_code))
+                buggy_code_clean = buggy_code_clean.replace("\r\n", "\n").replace("\r", "\n")
 
-            # Check that buggy code exists
-            if sample["buggy_code"].replace("\r\n", "\n").replace("\r", "\n") not in buggy_code:
-                logging.error(
-                    f"Could not find buggy code in {buggy_file_path} for {sample['identifier']}"
-                )
+            # Prepare the snippet comparison
+            target_snippet = sample["buggy_code"].replace("\r\n", "\n").replace("\r", "\n")
+            
+            if target_snippet not in buggy_code_clean:
+                logging.error(f"Snippet not found in {bug.get_identifier()}")
                 return None
 
-            # Get the fixed and candidate code
-            fixed_code = buggy_code.replace(sample["buggy_code"].replace("\r\n", "\n").replace("\r", "\n"), sample["fixed_code"].replace("\r\n", "\n").replace("\r", "\n"))
-            candidate_code = buggy_code.replace(sample["buggy_code"].replace("\r\n", "\n").replace("\r", "\n"), generation.replace("\r\n", "\n").replace("\r", "\n"))
+            # Generate candidate file content
+            candidate_code = buggy_code_clean.replace(target_snippet, generation.replace("\r\n", "\n").replace("\r", "\n"))
+            fixed_code = buggy_code_clean.replace(target_snippet, sample["fixed_code"].replace("\r\n", "\n").replace("\r", "\n"))
 
-            # Compute plausible match
-            # Write the generated code to the file
-            with open(
-                buggy_file_path,
-                "w",
-                encoding="ISO-8859-1",
-                errors="replace",
-            ) as f:
+            # Write to disk for compilation
+            with open(buggy_file_path, "w", encoding="ISO-8859-1", errors="replace") as f:
                 f.write(candidate_code)
 
-            # Evaluate the buggy code
+            # Compilation check
             compilation_result = bug.compile(buggy_path)
-            print(f"Compilation result: {compilation_result}")
             result["compile"] = compilation_result.is_passing()
-            # If it compiles, test the code
+
             if result["compile"]:
                 test_result = bug.test(buggy_path)
-                print(f"Test result: {test_result}")
                 result["test"] = test_result.is_passing()
-                # If the tests pass, check if the ASTs match
-                # Note: we do not for AST matching before because the ast matcher returns false positives in some cases
+                
+                # Calculate Reward based on pass rate
+                if test_result.tests_run > 0:
+                    pr = test_result.pass_rate if test_result.pass_rate is not None else 0.0
+                    result["test_reward"] = pr * 10.0
+                    if pr == 1.0:
+                        result["test"] = True
+                    
+                
+                # AST Matching (only if it tests successfully or for plausible candidates)
                 if result["test"]:
                     result["ast_match"] = self.ast_match(fixed_code, candidate_code)
+            else:
+                result["test_reward"] = 0.0
 
-            # Save the evaluation to the cache
+            # 5. Save to cache before returning
             if self.use_cache:
                 self.cache.save_to_cache_from_bug(bug, generation, result)
             return result
+
+        except Exception as e:
+            logging.error(f"Error evaluating {bug.get_identifier()}: {e}")
+            return result
         finally:
-            shutil.rmtree(buggy_path)
+            if os.path.exists(buggy_path):
+                shutil.rmtree(buggy_path)
 
     def _evaluate_impl(self, bug: Bug, sample: dict) -> Optional[List[dict]]:
-        """
-        Returns the evaluation for the given bug and sample.
-
-        :param bug: The bug to generate the prompt for.
-        :param sample: The sample to evaluate.
-        """
         evaluation = []
-
-        for generation in sample["generation"]:
+        for generation in sample.get("generation", []):
             evaluation.append(self.evaluate_generation(bug, sample, generation))
-
         return evaluation

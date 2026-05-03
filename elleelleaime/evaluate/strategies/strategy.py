@@ -42,13 +42,14 @@ class PatchEvaluationStrategy(ABC):
 
         # Run the AST matcher on the two files
         run = subprocess.run(
-            f'docker run --rm --volume ".:/elleelleaime" --volume "{tempfile.gettempdir()}:{tempfile.gettempdir()}" --workdir "/elleelleaime" openjdk:11 java -jar gumtree-spoon-ast-diff.jar {fixed_code_file.name} {candidate_code_file.name}',
+            f'/usr/lib/jvm/java-11-openjdk-amd64/bin/java -jar "/home/cse_g3/Documents/FYP/RepairLabs_Framework/gumtree-spoon-ast-diff.jar" "{fixed_code_file.name}" "{candidate_code_file.name}"',
             shell=True,
             capture_output=True,
+            text=True,
         )
 
         # Return True if "no AST change" in the output
-        return "no AST change" in run.stdout.decode("utf-8")
+        return "no AST change" in run.stdout
 
     @final
     def evaluate(self, bug: Bug, sample: dict) -> Optional[List[dict]]:

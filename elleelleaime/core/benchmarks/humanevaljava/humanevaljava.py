@@ -17,11 +17,51 @@ class HumanEvalJava(Benchmark):
     ) -> None:
         super().__init__("humanevaljava", path)
 
+    def _validate_layout(self) -> None:
+        required_paths = [
+            Path(
+                self.get_path(),
+                "pom.xml",
+            ),
+            Path(
+                self.get_path(),
+                "src",
+                "main",
+                "java",
+                "humaneval",
+                "humaneval_loc.txt",
+            ),
+            Path(
+                self.get_path(),
+                "src",
+                "main",
+                "java",
+                "humaneval",
+                "buggy",
+            ),
+            Path(
+                self.get_path(),
+                "src",
+                "main",
+                "java",
+                "humaneval",
+                "correct",
+            ),
+        ]
+        missing_paths = [str(path) for path in required_paths if not path.exists()]
+        if missing_paths:
+            raise RuntimeError(
+                "HumanEvalJava benchmark is not available or is incomplete. "
+                f"Missing required paths under {self.get_path()}: {missing_paths}. "
+                "Initialize repository submodules first, e.g. `git submodule update --init --recursive`."
+            )
+
     def initialize(self) -> None:
         """
         Initializes the HumanEvalJava benchmark object by collecting all the bugs.
         """
         logging.info("Initializing HumanEvalJava benchmark...")
+        self._validate_layout()
 
         # Get all samples
         locfile_path = Path(
